@@ -14,12 +14,11 @@ the signal handling. As a result, Mystikos cannot support an application that re
 
 # Design
 
+This proposal aims to support thread interrupt in Mystikos and ensures the consistency
+and compatibility with existing signal handling implementation.
+
 To support thread interrupt, the Mystikos tkill/tgkill syscall implementation needs to
 make an OCALL to the host, which sends the signal to the target thread via native tkill/tgkill.
-
-```
-int myst_tgkill_ocall(pid_t tgid, pid_t tid, int sig);
-```
 
 Catching and handling the signal require the cooperation between Mystikos and the Open Enclave (OE)
 runtime. More specifically, the OE runtime needs to register the existing signal handler for
@@ -35,14 +34,15 @@ this document proposes the following design.
   - The Mystikos enclave adds logic to handle when the exception code equals to `OE_EXCEPTION_UNKNOWN`
 
 - Trusted signal information passing
-  - The Mystikos invoke `myst_send_interrupt` before making a tgkill OCALL, which does the following
-    - Craft the `siginfo_t` and stores inside the `myst_thread_t` structure of the target thread
-    - Mark the target thread a interrupted
+  - The Mystikos kernel makes a tgkill OCALL after `myst_signal_delivery`, which
+    - stores the `siginfo_t` inside the `myst_thread_t` structure of the target thread and
+    - marks the target thread as interrupted
   - The signal handler invoked by the Mystikos enclave does the following
     - Check if the thread is interrupted.
       - If true, invoke `_handle_interrupt`, which invokes `handle_one_signal` using the stored
         siginfo.
       - Otherwise, invoke `_handle_one_signal`.
+    - This part can potentially be consolidated with `myst_signal_process`
 
 # Implementation
 
@@ -68,35 +68,29 @@ this document proposes the following design.
     long myst_syscall_tgkill(int tgid, int tid, int sig)
     {
         ...
-        myst_send_interrupt(target, sig, siginfo);
+        siginfo->si_code = SI_TKILL;
+        siginfo->si_signo = sig
+        siginfo->si_pid = tgid;
+        myst_signal_delivery(target, sig, siginfo);
+    #if MYST_THREAD_INTERRUPT
         long params[6] = {(pid_t)tgid, (pid_t)target->target_tid, SIGUSR1};
         ret = (long)myst_tcall(SYS_tgkill, params);
+    #endif
         ...
     }
     ```
 
   - Signal handling 
     ```c
-    long myst_send_interrupt(
+    long myst_signal_delivery(
         myst_thread_t* thread,
         unsigned signum,
         siginfo_t* siginfo)
     {
-        long ret = 0;
-
-        ECHECK(_check_signum(signum));
-
-        if (!thread)
-            ERAISE(-EINVAL);
-
-        if (thread->is_interrupted || thread->signal.interrupt_siginfo)
-            ERAISE(-ENOSYS);
-
+        ...
         thread->signal.interrupt_siginfo = siginfo;
         thread->is_interrupted = true;
-
-    done:
-        return ret;
+        ...
     }
     ```
 
