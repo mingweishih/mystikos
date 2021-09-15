@@ -1,0 +1,128 @@
+# Thread Interrupt in Mystikos
+
+On Linux, a process can interrupt a running thread by sending signals (via tkill/tgkill).
+Mystikos currently simulates this operation as follows.
+- A thread invokes tkill or tgkill syscall to send a signal to a target thread
+- The Mystikos kernel invokes `myst_signal_deliver`, which appends the signal to
+  the `myst_thread_t` structure associated with the thread.
+- Upon the target thread is running and makes a syscall (after the invocation of `myst_signal_deliver`),
+  the Mystikos kernel invokes `myst_signal_process` to handle the pending signal.
+
+As described, the simulation of tkill/tgkill does not interrupt the thread but delays
+the signal handling. As a result, Mystikos cannot support an application that requires
+"actual" interrupt.
+
+# Design
+
+To support thread interrupt, the Mystikos tkill/tgkill syscall implementation needs to
+make an OCALL to the host, which sends the signal to the target thread via native tkill/tgkill.
+
+```
+int myst_tgkill_ocall(pid_t tgid, pid_t tid, int sig);
+```
+
+Catching and handling the signal require the cooperation between Mystikos and the Open Enclave (OE)
+runtime. More specifically, the OE runtime needs to register the existing signal handler for
+the corresponding signal. Also, the OE in-enclave exception handler needs to forward the
+information of the signal to Mystikos. To not relying on the information sent from the host,
+this document proposes the following design.
+
+- Thread interruption
+  - The OE host runtime registers the signal handler for a new signal, `SIGUSR1`.
+  - The OE in-enclave excpeiotn handler forwards the following information to Mystkos
+    - `oe_exception_record->code`: `OE_EXCEPTION_UNKNOWN`
+    - Other fields: zero
+  - The Mystikos enclave adds logic to handle when the exception code equals to `OE_EXCEPTION_UNKNOWN`
+
+- Trusted signal information passing
+  - The Mystikos invoke `myst_send_interrupt` before making a tgkill OCALL, which does the following
+    - Craft the `siginfo_t` and stores inside the `myst_thread_t` structure of the target thread
+    - Mark the target thread a interrupted
+  - The signal handler invoked by the Mystikos enclave does the following
+    - Check if the thread is interrupted.
+      - If true, invoke `_handle_interrupt`, which invokes `handle_one_signal` using the stored
+        siginfo.
+      - Otherwise, invoke `_handle_one_signal`.
+
+# Implementation
+
+  List of sample code snippets for Mystikos implementation:
+
+  - Enclave
+    ```c
+    static uint64_t _forward_exception_as_signal_to_kernel(
+        oe_exception_record_t* oe_exception_record)
+    {
+        ...
+        if (oe_exception_code == OE_EXCEPTION_UNKNOWN)
+        {
+            (*_kargs.myst_handle_host_signal)(&siginfo, &_mcontext);
+            _mcontext_to_oe_context(&_mcontext, oe_context);
+            return OE_EXCEPTION_CONTINUE_EXECUTION;
+        }
+        ...
+    ```
+
+  - Syscall layer
+    ```c
+    long myst_syscall_tgkill(int tgid, int tid, int sig)
+    {
+        ...
+        myst_send_interrupt(target, sig, siginfo);
+        long params[6] = {(pid_t)tgid, (pid_t)target->target_tid, SIGUSR1};
+        ret = (long)myst_tcall(SYS_tgkill, params);
+        ...
+    }
+    ```
+
+  - Signal handling 
+    ```c
+    long myst_send_interrupt(
+        myst_thread_t* thread,
+        unsigned signum,
+        siginfo_t* siginfo)
+    {
+        long ret = 0;
+
+        ECHECK(_check_signum(signum));
+
+        if (!thread)
+            ERAISE(-EINVAL);
+
+        if (thread->is_interrupted || thread->signal.interrupt_siginfo)
+            ERAISE(-ENOSYS);
+
+        thread->signal.interrupt_siginfo = siginfo;
+        thread->is_interrupted = true;
+
+    done:
+        return ret;
+    }
+    ```
+
+    ```c
+    static long _handle_interrupt(
+        myst_thread_t* thread,
+        mcontext_t* mcontext)
+    {
+        long ret = 0;
+        siginfo_t* siginfo = thread->signal.interrupt_siginfo;
+
+        ret = _handle_one_signal(siginfo->si_signo, siginfo, mcontext);
+
+        thread->is_interrupted = false;
+        thread->signal.interrupt_siginfo = NULL;
+
+        return ret;
+    }
+    ```
+
+    ```c
+    long myst_handle_host_signal(siginfo_t* siginfo, mcontext_t* mcontext)
+    {
+        myst_thread_t* thread = myst_thread_self();
+        if (thread->is_interrupted)
+            return _handle_interrupt(thread, mcontext);
+        return _handle_one_signal(siginfo->si_signo, siginfo, mcontext);
+    }
+    ```
