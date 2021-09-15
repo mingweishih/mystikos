@@ -10,7 +10,7 @@ Mystikos currently simulates this operation as follows.
 
 As described, the simulation of tkill/tgkill does not interrupt the thread but delays
 the signal handling. As a result, Mystikos cannot support an application that requires
-"actual" interrupt.
+an "actual" interrupt.
 
 # Design
 
@@ -20,7 +20,7 @@ and compatibility with existing signal handling implementation.
 To support thread interrupt, the Mystikos tkill/tgkill syscall implementation needs to
 make an OCALL to the host, which sends the signal to the target thread via native tkill/tgkill.
 
-Catching and handling the signal require the cooperation between Mystikos and the Open Enclave (OE)
+Catching and handling the signal require cooperation between Mystikos and the Open Enclave (OE)
 runtime. More specifically, the OE runtime needs to register the existing signal handler for
 the corresponding signal. Also, the OE in-enclave exception handler needs to forward the
 information of the signal to Mystikos. To not relying on the information sent from the host,
@@ -28,10 +28,11 @@ this document proposes the following design.
 
 - Thread interruption
   - The OE host runtime registers the signal handler for a new signal, `SIGUSR1`.
-  - The OE in-enclave excpeiotn handler forwards the following information to Mystkos
+  - The OE in-enclave exception handler forwards the following information to Mystkos
     - `oe_exception_record->code`: `OE_EXCEPTION_UNKNOWN`
     - Other fields: zero
-  - The Mystikos enclave adds logic to handle when the exception code equals to `OE_EXCEPTION_UNKNOWN`
+    - Consideration: may affect the #PF simulation in SGX1 debug mode.
+  - The Mystikos enclave adds logic to handle when the exception code equals to `OE_EXCEPTION_UNKNOWN`.
 
 - Trusted signal information passing
   - The Mystikos kernel makes a tgkill OCALL after `myst_signal_delivery`, which
@@ -42,7 +43,10 @@ this document proposes the following design.
       - If true, invoke `_handle_interrupt`, which invokes `handle_one_signal` using the stored
         siginfo.
       - Otherwise, invoke `_handle_one_signal`.
-    - This part can potentially be consolidated with `myst_signal_process`
+    - This part can potentially be consolidated with `myst_signal_process`.
+
+ - Other considerations
+   - Make the interrupt support as build-time (`MYST_THREAD_INTERRUPT`) or run-time (controlled via a function parameter) options.
 
 # Implementation
 
@@ -72,7 +76,7 @@ this document proposes the following design.
         siginfo->si_signo = sig
         siginfo->si_pid = tgid;
         myst_signal_delivery(target, sig, siginfo);
-    #if MYST_THREAD_INTERRUPT
+    #ifdef MYST_THREAD_INTERRUPT
         long params[6] = {(pid_t)tgid, (pid_t)target->target_tid, SIGUSR1};
         ret = (long)myst_tcall(SYS_tgkill, params);
     #endif
