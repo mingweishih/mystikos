@@ -92,8 +92,10 @@ this document proposes the following design.
         siginfo_t* siginfo)
     {
         ...
+        // lock
         thread->signal.interrupt_siginfo = siginfo;
         thread->is_interrupted = true;
+        // unlock
         ...
     }
     ```
@@ -104,12 +106,17 @@ this document proposes the following design.
         mcontext_t* mcontext)
     {
         long ret = 0;
+        
+        // lock
+
         siginfo_t* siginfo = thread->signal.interrupt_siginfo;
 
         ret = _handle_one_signal(siginfo->si_signo, siginfo, mcontext);
 
         thread->is_interrupted = false;
         thread->signal.interrupt_siginfo = NULL;
+
+        // unlock
 
         return ret;
     }
@@ -119,6 +126,7 @@ this document proposes the following design.
     long myst_handle_host_signal(siginfo_t* siginfo, mcontext_t* mcontext)
     {
         myst_thread_t* thread = myst_thread_self();
+        // TODO: need lock
         if (thread->is_interrupted)
             return _handle_interrupt(thread, mcontext);
         return _handle_one_signal(siginfo->si_signo, siginfo, mcontext);
