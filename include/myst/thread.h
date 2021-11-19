@@ -15,6 +15,7 @@
 #include <myst/config.h>
 #include <myst/defs.h>
 #include <myst/fdtable.h>
+#include <myst/fsgs.h>
 #include <myst/futex.h>
 #include <myst/kstack.h>
 #include <myst/limit.h>
@@ -31,6 +32,10 @@
 
 /* this signal is used to interrupt threads blocking on host in syscalls */
 #define MYST_INTERRUPT_THREAD_SIGNAL (SIGRTMIN + 1)
+
+/* the default size of the signal stack per thread, which is dynamically
+ * allocated during the thread creation */
+#define MYST_THREAD_SIGNAL_STACK_SIZE (4 * 4096)
 
 typedef struct myst_thread myst_thread_t;
 typedef struct myst_process myst_process_t;
@@ -296,6 +301,10 @@ struct myst_thread
          */
         myst_thread_sig_handler_t* thread_sig_handler;
     } signal;
+
+    /* the stack for executing signal handlers */
+    void* signal_stack;
+    size_t signal_stack_size;
 
     // linked list of threads in process
     // lock points to the one in the main thread. Use when
@@ -677,5 +686,9 @@ MYST_INLINE int myst_thread_queue_search_remove_bitset(
 }
 
 int myst_interrupt_thread(myst_thread_t* thread);
+
+int myst_set_signal_stack(myst_thread_t* thread, size_t stack_size);
+
+int myst_free_signal_stack(myst_thread_t* thread);
 
 #endif /* _MYST_THREAD_H */

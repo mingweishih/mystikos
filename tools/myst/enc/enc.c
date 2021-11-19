@@ -635,6 +635,7 @@ static long _enter(void* arg_)
         _kargs.nobrk = final_options.base.nobrk;
         _kargs.exec_stack = final_options.base.exec_stack;
         _kargs.perf = final_options.base.perf;
+        _kargs.sigsegv_altstack = final_options.base.sigsegv_altstack;
         _kargs.start_time_sec = arg->start_time_sec;
         _kargs.start_time_nsec = arg->start_time_nsec;
         _kargs.report_native_tids = final_options.base.report_native_tids;

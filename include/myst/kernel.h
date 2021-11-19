@@ -231,6 +231,10 @@ typedef struct myst_kernel_args
     // From the --thread-stack-size=<size> option.
     size_t thread_stack_size;
 
+    // true if --sigsegv_altstack option is present -- allows altstack for
+    // sigsegv */
+    bool sigsegv_altstack;
+
     // From the --max-affinity-cpus=<num> option. This setting limits the
     // CPUs reported by sched_getaffinity().
     size_t max_affinity_cpus;

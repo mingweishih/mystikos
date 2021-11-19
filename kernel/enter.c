@@ -11,6 +11,7 @@
 #include <myst/appenv.h>
 #include <myst/atexit.h>
 #include <myst/clock.h>
+#include <myst/config.h>
 #include <myst/cpio.h>
 #include <myst/crash.h>
 #include <myst/debugmalloc.h>
@@ -950,6 +951,12 @@ int myst_enter_kernel(myst_kernel_args_t* args)
         /* release signal related heap memory */
         myst_signal_free(process);
         myst_signal_free_siginfos(thread);
+
+#ifdef MYST_USE_SIGNAL_STACK
+        /* release signal stack */
+        if (__myst_kernel_args.sigsegv_altstack)
+            myst_free_signal_stack(thread);
+#endif
 
         /* Free CWD */
         free(process->cwd);

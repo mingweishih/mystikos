@@ -10,6 +10,7 @@ OPTS += --strace
 endif
 
 OPTS += --fork-mode pseudo_wait_for_exit_exec
+OPTS += --sigsegv-altstack
 
 all: rootfs
 

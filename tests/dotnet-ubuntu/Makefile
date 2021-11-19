@@ -21,6 +21,7 @@ clean:
 	rm -fr appdir ext2fs
 
 OPTS += --memory-size $(HEAP_SIZE)
+OPTS += --sigsegv-altstack
 
 tests:
 	$(RUNTEST) $(MYST_EXEC) ext2fs /app/hello $(OPTS)

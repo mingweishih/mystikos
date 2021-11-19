@@ -12,6 +12,7 @@
 
 #include <myst/args.h>
 #include <myst/atexit.h>
+#include <myst/config.h>
 #include <myst/cpio.h>
 #include <myst/eraise.h>
 #include <myst/exec.h>
@@ -1109,6 +1110,24 @@ int myst_exec(
             stack, __myst_kernel_args.main_stack_size, process->pid) != 0)
         myst_panic("myst_mman_pids_set()");
 
+#ifdef MYST_USE_SIGNAL_STACK
+    /* In case this is a nested exec, then release previous signal stack first
+     */
+    if (__myst_kernel_args.sigsegv_altstack)
+    {
+        myst_free_signal_stack(thread);
+        ECHECK(myst_set_signal_stack(thread, MYST_THREAD_SIGNAL_STACK_SIZE));
+
+        /* set pid to the newly allocated stack (now part of the process
+         * mappings) */
+        if (myst_mman_pids_set(
+                thread->signal_stack,
+                thread->signal_stack_size,
+                process->pid) != 0)
+            myst_panic("myst_mman_pids_set()");
+    }
+#endif
+
     /* used by myst_syscall_get_process_thread_stack */
     process->exec_stack = stack;
     process->exec_stack_size = __myst_kernel_args.main_stack_size;
@@ -1166,6 +1185,11 @@ done:
 
     if (crt_data)
         myst_munmap(crt_data, crt_size);
+
+#ifdef MYST_USE_SIGNAL_STACK
+    if (__myst_kernel_args.sigsegv_altstack)
+        myst_free_signal_stack(thread);
+#endif
 
     if (hashbang_buff)
         free(hashbang_buff);

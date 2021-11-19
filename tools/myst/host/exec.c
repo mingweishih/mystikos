@@ -372,6 +372,9 @@ Options:\n\
                             it encounters an unimplemented syscall\n\
                             'true' implies the syscall would not terminate\n\
                             and instead return ENOSYS.\n\
+    --sigsegv-altstack <true/false>\n\
+                         -- flag indicating the enclave will use an\n\
+                            alternative stack to handle SIGSEGV.\n\
 \n"
 
 int exec_action(int argc, const char* argv[], const char* envp[])
@@ -449,6 +452,10 @@ int exec_action(int argc, const char* argv[], const char* envp[])
         /* Get --report-native-tids option */
         if (cli_getopt(&argc, argv, "--report-native-tids", NULL) == 0)
             options.report_native_tids = true;
+
+        /* Get --sigsev_altstack */
+        if (cli_getopt(&argc, argv, "--sigsegv-altstack", NULL) == 0)
+            options.sigsegv_altstack = true;
 
         /* Get --max-affinity-cpus */
         {

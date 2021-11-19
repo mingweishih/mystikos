@@ -24,4 +24,6 @@
 /* enable to keep the crt pointer in the myst_thread_t */
 // #define MYST_THREAD_KEEP_CRT_PTR
 
+#define MYST_USE_SIGNAL_STACK
+
 #endif /* _MYST_CONFIG_H */

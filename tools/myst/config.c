@@ -238,6 +238,16 @@ static json_result_t _json_read_callback(
                 else
                     CONFIG_RAISE(JSON_TYPE_MISMATCH);
             }
+            else if (json_match(parser, "SIGSEGVAltStack") == JSON_OK)
+            {
+                if (type == JSON_TYPE_BOOLEAN)
+                    parsed_data->sigsegv_altstack = un->boolean;
+                else if (type == JSON_TYPE_INTEGER)
+                    parsed_data->sigsegv_altstack =
+                        (un->integer == 0) ? false : true;
+                else
+                    CONFIG_RAISE(JSON_TYPE_MISMATCH);
+            }
             else if (json_match(parser, "ApplicationPath") == JSON_OK)
             {
                 if (type == JSON_TYPE_STRING)

@@ -150,6 +150,10 @@ static void _get_options(
     if (cli_getopt(argc, argv, "--report-native-tids", NULL) == 0)
         opts->report_native_tids = true;
 
+    /* Get --sigsev_altstack */
+    if (cli_getopt(argc, argv, "--sigsegv-altstack", NULL) == 0)
+        opts->sigsegv_altstack = true;
+
     if (get_fork_mode_opts(argc, argv, &opts->fork_mode) != 0)
         _err(
             "%s: invalid --fork-mode option. Only \"none\", "
@@ -520,6 +524,8 @@ static int _enter_kernel(
     }
 
     kernel_args.report_native_tids = final_options.base.report_native_tids;
+
+    kernel_args.sigsegv_altstack = final_options.base.sigsegv_altstack;
 
     kernel_args.main_stack_size = final_options.base.main_stack_size
                                       ? final_options.base.main_stack_size
