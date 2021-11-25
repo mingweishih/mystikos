@@ -466,16 +466,6 @@ long myst_syscall_open(const char* pathname, int flags, mode_t mode)
     if (!(locals = malloc(sizeof(struct locals))))
         ERAISE(-ENOMEM);
 
-    if (flags & O_NOFOLLOW)
-    {
-        /* check if path is a link, if so O_PATH should be passed */
-        if (ret = myst_syscall_lstat(pathname, &locals->statbuf) < 0)
-            ERAISE(ret);
-
-        if (S_ISLNK(locals->statbuf.st_mode) && !(flags & O_PATH))
-            ERAISE(-ELOOP);
-    }
-
     ECHECK(myst_mount_resolve(pathname, locals->suffix, &fs));
     ECHECK((*fs->fs_open)(fs, locals->suffix, flags, mode, &fs_out, &file));
 
@@ -4029,17 +4019,22 @@ static long _syscall(void* args_)
             if (!thread || thread->magic != MYST_THREAD_MAGIC)
                 myst_panic("unexpected");
 
-            bool process_status_set = false;
-            if (__atomic_compare_exchange_n(
-                    &process->exit_status_signum_set,
-                    &process_status_set,
-                    true,
-                    false,
-                    __ATOMIC_RELEASE,
-                    __ATOMIC_ACQUIRE))
+            if (((n == SYS_exit) && (thread->group_next == NULL) &&
+                 (thread->group_prev == NULL)) ||
+                (n == SYS_exit_group))
             {
-                process->exit_status = status;
-                process->terminating_signum = 0;
+                bool process_status_set = false;
+                if (__atomic_compare_exchange_n(
+                        &process->exit_status_signum_set,
+                        &process_status_set,
+                        true,
+                        false,
+                        __ATOMIC_RELEASE,
+                        __ATOMIC_ACQUIRE))
+                {
+                    process->exit_status = status;
+                    process->terminating_signum = 0;
+                }
             }
 
             if (n == SYS_exit_group)
@@ -4183,7 +4178,10 @@ static long _syscall(void* args_)
         {
             const char* path = (const char*)x1;
 
-            _strace(n, "path=\"%s\"", path);
+            if (path && !myst_is_bad_addr_read(path, 1))
+                _strace(n, "path=\"%s\"", path);
+            else
+                _strace(n, "path=\"%s\"", "<bad_ptr>");
 
             BREAK(_return(n, myst_syscall_chdir(path)));
         }
@@ -4354,7 +4352,16 @@ static long _syscall(void* args_)
             uid_t owner = (uid_t)x2;
             gid_t group = (gid_t)x3;
 
-            _strace(n, "pathname=%s owner=%u group=%u", pathname, owner, group);
+            if (pathname && !myst_is_bad_addr_read(pathname, 1))
+                _strace(
+                    n, "pathname=%s owner=%u group=%u", pathname, owner, group);
+            else
+                _strace(
+                    n,
+                    "pathname=%s owner=%u group=%u",
+                    "<bad_ptr>",
+                    owner,
+                    group);
 
             BREAK(_return(n, myst_syscall_lchown(pathname, owner, group)));
         }

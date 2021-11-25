@@ -109,8 +109,7 @@ enclave
 
         long myst_syscall_isatty_ocall(int fd);
 
-        int myst_mprotect_ocall(void* addr, size_t len, int prot)
-            transition_using_threads;
+        int myst_mprotect_ocall(void* addr, size_t len, int prot);
 
         /*
         **======================================================================
@@ -628,5 +627,18 @@ enclave
             [out] uint32_t* rbx,
             [out] uint32_t* rcx,
             [out] uint32_t* rdx);
+
+        /*
+        **======================================================================
+        **
+        ** console I/O
+        **
+        **======================================================================
+        */
+
+        long myst_write_console_ocall(
+            int fd, /* STDOUT_FILENO or STDERR_FILENO */
+            [in, size=count] const void* buf,
+            size_t count);
     };
 };
