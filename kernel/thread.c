@@ -978,11 +978,11 @@ static long _run_thread(void* arg_)
 
         /* set pid to the newly allocated stack (now part of the process
          * mappings) */
-        if (myst_mman_pids_set(
+        /*if (myst_mman_pids_set(
                 thread->signal_stack,
                 thread->signal_stack_size,
                 process->pid) != 0)
-            myst_panic("myst_mman_pids_set()");
+            myst_panic("myst_mman_pids_set()");*/
     }
 #endif
 
@@ -1789,6 +1789,12 @@ int myst_set_signal_stack(myst_thread_t* thread, size_t stack_size)
     thread->signal_stack = stack;
     thread->signal_stack_size = stack_size + PAGE_SIZE;
 
+    printf(
+        "tid=%d set signal stack [0x%lx, 0x%lx]\n",
+        thread->target_tid,
+        (uint64_t)stack + PAGE_SIZE,
+        (uint64_t)stack + PAGE_SIZE + stack_size);
+
     myst_tcall_td_set_exception_handler_stack(
         (void*)thread->target_td,
         (void*)((uint64_t)stack + PAGE_SIZE),
@@ -1807,6 +1813,8 @@ int myst_free_signal_stack(myst_thread_t* thread)
 
     if (!thread)
         ERAISE(-EINVAL);
+
+    printf("tid=%d free signal stack\n", thread->target_tid);
 
     myst_tcall_td_set_exception_handler_stack(
         (void*)thread->target_td, NULL, 0);

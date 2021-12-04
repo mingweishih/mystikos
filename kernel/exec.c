@@ -1120,11 +1120,11 @@ int myst_exec(
 
         /* set pid to the newly allocated stack (now part of the process
          * mappings) */
-        if (myst_mman_pids_set(
+        /*if (myst_mman_pids_set(
                 thread->signal_stack,
                 thread->signal_stack_size,
                 process->pid) != 0)
-            myst_panic("myst_mman_pids_set()");
+            myst_panic("myst_mman_pids_set()");*/
     }
 #endif
 

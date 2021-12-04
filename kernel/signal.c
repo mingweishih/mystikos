@@ -458,9 +458,11 @@ static long _handle_one_signal(
         /* restore the user-space fsbase, which is pthread_self() */
         myst_set_fsbase(thread->crt_td);
 
-        use_alt_stack = (action->flags & SA_ONSTACK) &&
+        /*use_alt_stack = (action->flags & SA_ONSTACK) &&
                         !(altstack->ss_flags & (SS_DISABLE | SS_ONSTACK)) &&
-                        (altstack->ss_sp != 0);
+                        (altstack->ss_sp != 0);*/
+
+        use_alt_stack = (action->flags & SA_ONSTACK) && (altstack->ss_sp != 0);
 
         if ((action->flags & SA_SIGINFO) != 0)
         {
@@ -494,7 +496,26 @@ static long _handle_one_signal(
                 context.uc_stack.ss_flags = altstack->ss_flags;
             }
 
+            uint64_t rsp;
+            asm volatile("mov %%rsp, %0" : "=r"(rsp));
+
+            printf(
+                "tid=%d current rsp=0x%lx, altstack [0x%lx, 0x%lx]\n",
+                thread->target_tid,
+                rsp,
+                (uint64_t)altstack->ss_sp,
+                stacktop);
+
             myst_call_on_stack((void*)stacktop, _handler_wrapper, &arg);
+
+            asm volatile("mov %%rsp, %0" : "=r"(rsp));
+
+            printf(
+                "tid=%d return current rsp=0x%lx, altstack [0x%lx, 0x%lx]\n",
+                thread->target_tid,
+                rsp,
+                (uint64_t)altstack->ss_sp,
+                stacktop);
 
             altstack->ss_flags &= ~SS_ONSTACK; // Done with the alt stack.
         }
@@ -730,8 +751,8 @@ long myst_signal_deliver(
                 thread->target_tid,
                 signum);
 #endif
-            ret = myst_tcall_tgkill(
-                thread->process->pid, thread->target_tid, SIGUSR1);
+            // ret = myst_tcall_tgkill(
+            //    thread->process->pid, thread->target_tid, SIGUSR1);
         }
 #endif
     }
@@ -804,17 +825,22 @@ long myst_handle_host_signal(siginfo_t* siginfo, mcontext_t* mcontext)
 
     if (myst_tcall_is_handling_host_signal((void*)thread->target_td) == 1)
     {
-#ifdef TRACE
+        //#ifdef TRACE
         printf(
             "pid=%d tid=%d is interrupted\n",
             thread->process->pid,
             thread->tid);
-#endif
+        //#endif
         /* the thread is interrupted, process the all pending signals */
         ret = myst_signal_process(thread, mcontext);
     }
     else
     {
+        printf(
+            "pid=%d tid=%d regular signal=%d\n",
+            thread->process->pid,
+            thread->tid,
+            siginfo->si_signo);
         ret = _handle_one_signal(siginfo->si_signo, siginfo, mcontext);
     }
 
