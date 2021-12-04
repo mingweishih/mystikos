@@ -1,0 +1,20 @@
+{
+    "Debug": 1,
+    "ProductID": 1,
+    "SecurityVersion": 1,
+    "UserMemSize": "8g",
+    // "CurrentWorkingDirectory": "/dotnet-lib-release",
+    // "ApplicationPath": "/dotnet-lib-release/testhost/net5.0-Linux-Release-x64/dotnet",
+    // "ApplicationParameters": ["test", "System.ValueTuple.Tests/net5.0-Release/System.ValueTuple.Tests.dll"],
+    "HostApplicationParameters": true,
+    "EnvironmentVariables": [
+        "DOTNET_CLI_TELEMETRY_OPTOUT=1",
+        "DOTNET_CLI_PERF_LOG=0", 
+        "DOTNET_CLI_HOME=/",
+        "COMPlus_EnableDiagnostics=0",
+        "COMPlus_EnableAlternateStackCheck=1"
+    ],
+    "ThreadStackSize": "4m",
+    "NoBrk": 1,
+    "SIGSEGVAltStack": 1
+}
